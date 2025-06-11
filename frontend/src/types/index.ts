@@ -50,7 +50,7 @@ export interface Team {
 export interface TeamMember {
   user_id: string;
   team_id: string;
-  role: 'member' | 'admin';
+  role: 'owner' | 'member' | 'admin';
   joined_at: string;
   user?: User;
 }
@@ -73,4 +73,19 @@ export interface DashboardStats {
   total_tasks: number;
   completed_tasks: number;
   overdue_tasks: number;
+}
+
+export interface Activity {
+  id: string;
+  type: 'project_created' | 'project_updated' | 'project_deleted' | 
+        'task_created' | 'task_updated' | 'task_completed' | 'task_deleted' |
+        'team_created' | 'team_updated' | 'team_deleted' | 
+        'team_member_added' | 'team_member_removed' | 'user_joined';
+  target_id: string;
+  target_name: string;
+  user_id: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  user_name?: string;
+  user_email?: string;
 }

@@ -12,24 +12,53 @@ class ProjectStatus(str, Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+class ProjectVisibility(str, Enum):
+    PRIVATE = "private"
+    PUBLIC = "public"
+    LINK_ONLY = "link_only"
+
 class ProjectBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=1000)
     status: ProjectStatus = ProjectStatus.PLANNING
 
-class ProjectCreate(ProjectBase):
+class ProjectCreate(BaseModel):
+    name: str
+    description: str
+    status: ProjectStatus = ProjectStatus.PLANNING
     team_id: Optional[str] = None
+    visibility: ProjectVisibility = ProjectVisibility.PRIVATE
 
-class ProjectUpdate(ProjectBase):
+class ProjectUpdate(BaseModel):
     name: Optional[str] = None
+    description: Optional[str] = None
     status: Optional[ProjectStatus] = None
+    team_id: Optional[str] = None
+    visibility: Optional[ProjectVisibility] = None
 
-class ProjectResponse(ProjectBase):
+class ProjectResponse(BaseModel):
     id: str
+    name: str
+    description: str
+    status: ProjectStatus
     owner_id: str
     team_id: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    visibility: Optional[ProjectVisibility] = ProjectVisibility.PRIVATE  # Optional for backward compatibility
+    public_id: Optional[str] = None  # For shareable links
+    created_at: str
+    updated_at: str
+    
+    class Config:
+        from_attributes = True
 
+class PublicProjectResponse(BaseModel):
+    """Limited project info for public/guest viewing"""
+    id: str
+    name: str
+    description: str
+    status: ProjectStatus
+    created_at: str
+    updated_at: str
+    
     class Config:
         from_attributes = True

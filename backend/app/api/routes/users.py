@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Any, Dict
+from typing import Any, Dict, List
 from ...models.user import UserResponse
 from ...database import get_supabase_client
 from supabase import Client
@@ -44,4 +44,35 @@ async def get_user_profile(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch user profile"
+        )
+
+@router.get("/search", response_model=List[UserResponse])
+async def search_users_by_email(
+    email: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """Search for users by email address"""
+    try:
+        if not email or len(email.strip()) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email must be at least 3 characters long"
+            )
+        
+        # Search for users by email (case insensitive, partial match)
+        response = supabase.table("profiles").select("*").ilike("email", f"%{email.strip()}%").limit(10).execute()
+        
+        if response.data:
+            return [UserResponse(**user) for user in response.data]
+        
+        return []
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching users by email '{email}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search users"
         ) 

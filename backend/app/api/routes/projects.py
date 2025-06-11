@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
-from ...models.project import ProjectCreate, ProjectResponse, ProjectUpdate
-from ...dependencies import get_current_user
+from ...models.project import ProjectCreate, ProjectResponse, ProjectUpdate, PublicProjectResponse
+from ...dependencies import get_current_user, get_current_user_optional
 from ...database import get_supabase_client
+from ...services.activity_service import log_project_created
 from supabase.client import Client
 import logging
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,6 +32,13 @@ async def create_project(
         response = supabase.table("projects").insert(project).execute()
         
         if len(response.data) > 0:
+            # Log activity
+            await log_project_created(
+                user_id=current_user.id,
+                project_id=response.data[0]["id"],
+                project_name=response.data[0]["name"],
+                supabase=supabase
+            )
             return response.data[0]
         else:
             raise HTTPException(
@@ -194,4 +203,136 @@ async def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete project: {str(e)}"
+        )
+
+# Public/Guest Routes
+@router.post("/{project_id}/share")
+async def share_project(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """Generate a shareable public link for a project"""
+    try:
+        # Check if project exists and user is owner
+        project = supabase.table("projects").select("*").eq("id", project_id).execute()
+        
+        if not project.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+            
+        if project.data[0]["owner_id"] != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only project owner can share projects"
+            )
+        
+        # Generate public ID if not exists
+        public_id = project.data[0].get("public_id")
+        if not public_id:
+            public_id = str(uuid.uuid4())
+            supabase.table("projects").update({
+                "public_id": public_id,
+                "visibility": "link_only"
+            }).eq("id", project_id).execute()
+        
+        return {
+            "public_id": public_id,
+            "share_url": f"/public/projects/{public_id}",
+            "message": "Project is now shareable via public link"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to share project: {str(e)}"
+        )
+
+@router.get("/public/{public_id}", response_model=PublicProjectResponse)
+async def get_public_project(
+    public_id: str,
+    current_user: dict = Depends(get_current_user_optional),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """Get public project by shareable ID - no authentication required"""
+    try:
+        # Find project by public_id
+        project = supabase.table("projects").select("*").eq("public_id", public_id).execute()
+        
+        if not project.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found or not publicly accessible"
+            )
+        
+        project_data = project.data[0]
+        
+        # Check if project is actually public/shareable
+        if project_data.get("visibility") not in ["public", "link_only"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project is not publicly accessible"
+            )
+        
+        # Return limited project info for public viewing
+        return PublicProjectResponse(
+            id=project_data["id"],
+            name=project_data["name"],
+            description=project_data["description"],
+            status=project_data["status"],
+            created_at=project_data["created_at"],
+            updated_at=project_data["updated_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch public project: {str(e)}"
+        )
+
+@router.get("/public/{public_id}/tasks")
+async def get_public_project_tasks(
+    public_id: str,
+    current_user: dict = Depends(get_current_user_optional),
+    supabase: Client = Depends(get_supabase_client)
+):
+    """Get public project tasks - no authentication required"""
+    try:
+        # Find project by public_id
+        project = supabase.table("projects").select("*").eq("public_id", public_id).execute()
+        
+        if not project.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found or not publicly accessible"
+            )
+        
+        project_data = project.data[0]
+        
+        # Check if project is actually public/shareable
+        if project_data.get("visibility") not in ["public", "link_only"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project is not publicly accessible"
+            )
+        
+        # Get tasks for this project (limited info for public viewing)
+        tasks = supabase.table("tasks").select(
+            "id, title, description, status, priority, due_date, created_at"
+        ).eq("project_id", project_data["id"]).execute()
+        
+        return tasks.data or []
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch public project tasks: {str(e)}"
         )

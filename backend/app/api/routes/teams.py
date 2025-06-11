@@ -3,6 +3,7 @@ from typing import List, Optional
 from ...models.team import TeamCreate, TeamResponse, TeamUpdate, TeamMemberAdd
 from ...dependencies import get_current_user
 from ...database import get_supabase_client
+from ...services.activity_service import log_team_created, log_team_member_added
 from supabase import Client
 
 router = APIRouter(prefix="/teams", tags=["Teams"])
@@ -30,6 +31,14 @@ async def create_team(
                 "role": "owner"
             }
             supabase.table("team_members").insert(team_member).execute()
+            
+            # Log activity
+            await log_team_created(
+                user_id=current_user.id,
+                team_id=response.data[0]["id"],
+                team_name=response.data[0]["name"],
+                supabase=supabase
+            )
             
             return response.data[0]
         else:
@@ -149,6 +158,19 @@ async def add_team_member(
         }
         
         supabase.table("team_members").insert(team_member).execute()
+        
+        # Get user details for activity log
+        user_profile = supabase.table("profiles").select("full_name").eq("id", member_data.user_id).execute()
+        member_name = user_profile.data[0]["full_name"] if user_profile.data else "Unknown User"
+        
+        # Log activity
+        await log_team_member_added(
+            user_id=current_user.id,
+            team_id=team_id,
+            team_name=team.data[0]["name"],
+            member_name=member_name,
+            supabase=supabase
+        )
         
         return {"message": "Team member added successfully"}
     except HTTPException:

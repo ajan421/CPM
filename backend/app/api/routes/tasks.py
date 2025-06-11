@@ -3,6 +3,7 @@ from typing import List, Optional
 from ...models.task import TaskCreate, TaskResponse, TaskUpdate, TaskStatus
 from ...dependencies import get_current_user
 from ...database import get_supabase_client
+from ...services.activity_service import log_task_created, log_task_completed
 from supabase.client import Client
 from gotrue import User
 import logging
@@ -79,6 +80,16 @@ async def create_task(
                 
             created_task = response.data[0]
             logger.debug(f"Successfully created task: {created_task}")
+            
+            # Log activity
+            await log_task_created(
+                user_id=current_user.id,
+                task_id=created_task["id"],
+                task_title=created_task["title"],
+                project_name=project["name"],
+                supabase=supabase
+            )
+            
             return created_task
             
         except Exception as insert_error:
@@ -217,7 +228,7 @@ async def update_task(
         logger.debug(f"Updating task: {task_id}")
         
         # Check access
-        task_query = supabase.table("tasks").select("*").eq("id", task_id).or_(
+        task_query = supabase.table("tasks").select("*, projects!tasks_project_id_fkey(name)").eq("id", task_id).or_(
             f"creator_id.eq.{current_user.id},"
             f"assignee_id.eq.{current_user.id},"
             f"project_id.in.(select id from projects where owner_id.eq.{current_user.id})"
@@ -229,6 +240,9 @@ async def update_task(
                 detail="Task not found or access denied"
             )
             
+        original_task = task_query.data[0]
+        original_status = original_task.get("status")
+        
         # Update task
         update_data = {k: v for k, v in task_data.model_dump().items() if v is not None}
         response = supabase.table("tasks").update(update_data).eq("id", task_id).execute()
@@ -239,7 +253,24 @@ async def update_task(
                 detail="Failed to update task"
             )
             
-        return response.data[0]
+        updated_task = response.data[0]
+        
+        # Log activity if task was completed
+        if (original_status != "done" and 
+            task_data.status and 
+            task_data.status.value == "done"):
+            project = original_task.get("projects")
+            project_name = project.get("name") if project else "Unknown Project"
+            
+            await log_task_completed(
+                user_id=current_user.id,
+                task_id=task_id,
+                task_title=updated_task["title"],
+                project_name=project_name,
+                supabase=supabase
+            )
+            
+        return updated_task
         
     except HTTPException:
         raise

@@ -33,3 +33,19 @@ def get_current_user(token: str = Depends(oauth2_scheme), supabase: Client = Dep
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+def get_current_user_optional(token: str = Depends(oauth2_scheme), supabase: Client = Depends(get_supabase_client)):
+    """Optional authentication - returns None if not authenticated"""
+    try:
+        if not token:
+            return None
+            
+        response = supabase.auth.get_user(token)
+        
+        if not response or not response.user:
+            return None
+            
+        return response.user
+        
+    except Exception:
+        return None
