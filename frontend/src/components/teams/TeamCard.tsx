@@ -39,6 +39,18 @@ export const TeamCard: React.FC<TeamCardProps> = ({
               <span>Created {new Date(team.created_at).toLocaleDateString()}</span>
             </div>
           </div>
+          {team.members && team.members.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {team.members.map((member) => (
+                <span
+                  key={member.user_id}
+                  className="inline-block bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-full px-3 py-1 text-xs font-medium"
+                >
+                  {member.user?.full_name || member.user_id}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         
         <div className="relative">

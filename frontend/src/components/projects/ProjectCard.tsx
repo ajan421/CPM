@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Calendar, Users, MoreHorizontal, FolderOpen } from 'lucide-react';
 import { Project } from '../../types';
 import { formatDistanceToNow } from 'date-fns';
@@ -35,6 +35,26 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   const completedTasks = project.tasks?.filter(task => task.status === 'done').length || 0;
   const progress = taskCount > 0 ? (completedTasks / taskCount) * 100 : 0;
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
       <div className="p-6">
@@ -52,9 +72,39 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
               </span>
             </div>
           </div>
-          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Project options"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEdit(project);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-sm text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    if (window.confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+                      onDelete(project.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">

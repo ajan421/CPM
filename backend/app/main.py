@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
 from .config import get_settings
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -12,12 +13,19 @@ settings = get_settings()
 
 app = FastAPI(title=settings.APP_NAME)
 
-# Add CORS middleware with more permissive settings for development
+# Add CORS middleware - handles both development and production
 origins = [
     "http://localhost:5173",  # Vite dev server
     "http://localhost:4173",  # Vite preview
     "http://localhost:3000",  # Alternative dev port
 ]
+
+# Add production frontend URL from environment variable
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins.append(frontend_url)
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +53,9 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "app_name": settings.APP_NAME}
+
+# Vercel handler
+handler = app
 
 if __name__ == "__main__":
     import uvicorn

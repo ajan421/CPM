@@ -10,6 +10,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Projects } from './pages/Projects';
 import { Tasks } from './pages/Tasks';
 import { Teams } from './pages/Teams';
+import { Calendar } from './pages/Calendar';
+import { Analytics } from './pages/Analytics';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient({
@@ -57,8 +59,8 @@ function App() {
               <Route path="projects" element={<Projects />} />
               <Route path="tasks" element={<Tasks />} />
               <Route path="teams" element={<Teams />} />
-              <Route path="calendar" element={<div className="p-6 text-center">Calendar coming soon...</div>} />
-              <Route path="analytics" element={<div className="p-6 text-center">Analytics coming soon...</div>} />
+              <Route path="calendar" element={<Calendar />} />
+              <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<div className="p-6 text-center">Settings coming soon...</div>} />
             </Route>
 
