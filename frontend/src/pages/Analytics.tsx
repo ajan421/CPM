@@ -39,7 +39,7 @@ export const Analytics: React.FC = () => {
   // Calculate overdue tasks
   const overdueTasks = tasks.filter(task => {
     if (!task.due_date || task.status === 'done') return false;
-    return new Date(task.due_date) < new Date() && task.status !== 'completed';
+    return new Date(task.due_date) < new Date() && task.status !== 'done';
   }).length;
 
   // Calculate team statistics
